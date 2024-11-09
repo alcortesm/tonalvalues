@@ -31,8 +31,12 @@ func do(cfg config) error {
 
 	gray := toGray(original)
 
-	if err := saveImage(gray); err != nil {
-		return fmt.Errorf("saving image: %v", err)
+	rowColor := mergeImagesHorizontally([]image.Image{original, gray})
+	row2Tones := mergeImagesHorizontally([]image.Image{gray, gray})
+	output := mergeImagesVertically([]image.Image{rowColor, row2Tones})
+
+	if err := saveImage(output); err != nil {
+		return fmt.Errorf("saving output image: %v", err)
 	}
 
 	return nil
@@ -145,4 +149,50 @@ func saveImage(img image.Image) (err error) {
 	}
 
 	return nil
+}
+
+func mergeImagesHorizontally(imgs []image.Image) image.Image {
+	var width, height int
+
+	for _, i := range imgs {
+		width += i.Bounds().Max.X
+		height = max(height, i.Bounds().Max.Y)
+	}
+
+	result := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	offsetX := 0
+	for _, img := range imgs {
+		for x := 0; x < img.Bounds().Max.X; x++ {
+			for y := 0; y < img.Bounds().Max.Y; y++ {
+				result.Set(offsetX+x, y, img.At(x, y))
+			}
+		}
+		offsetX += img.Bounds().Max.X
+	}
+
+	return result
+}
+
+func mergeImagesVertically(imgs []image.Image) image.Image {
+	var width, height int
+
+	for _, i := range imgs {
+		width = max(width, i.Bounds().Max.X)
+		height += i.Bounds().Max.Y
+	}
+
+	result := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	offsetY := 0
+	for _, img := range imgs {
+		for x := 0; x < img.Bounds().Max.X; x++ {
+			for y := 0; y < img.Bounds().Max.Y; y++ {
+				result.Set(x, offsetY+y, img.At(x, y))
+			}
+		}
+		offsetY += img.Bounds().Max.Y
+	}
+
+	return result
 }
