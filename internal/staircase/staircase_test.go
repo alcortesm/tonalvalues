@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alcortesm/tonalvalues/staircase"
+	"github.com/alcortesm/tonalvalues/internal/staircase"
 )
 
 func TestTransform(t *testing.T) {

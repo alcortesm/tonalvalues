@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/alcortesm/tonalvalues/staircase"
+	"github.com/alcortesm/tonalvalues/internal/staircase"
 )
 
 // run like this:
