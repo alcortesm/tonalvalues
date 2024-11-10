@@ -5,8 +5,9 @@ import (
 	"image"
 	"image/jpeg"
 	"log"
-	"math"
 	"os"
+
+	"github.com/alcortesm/tonalvalues/staircase"
 )
 
 // run like this:
@@ -14,6 +15,7 @@ import (
 // ./tonalvalues example.jpg
 //
 // then check out the output.jpg file
+
 func main() {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -36,6 +38,10 @@ func do(cfg config) error {
 	}
 
 	gray := toGray(original)
+
+	minValue, maxValue := valueRange(gray)
+	fmt.Printf("min_value=%d, max_value=%d", minValue, maxValue)
+
 	output := mergeImagesHorizontally([]image.Image{original, gray})
 	output = outputAppend(output, gray, 2)
 	output = outputAppend(output, gray, 3)
@@ -196,61 +202,35 @@ func mergeImagesVertically(imgs []image.Image) image.Image {
 	return result
 }
 
-func valueRange(img *image.Gray) (minV, maxV uint8) {
+func valueRange(img *image.Gray) (minV, maxV uint) {
 	minV = 255
 	maxV = 0
 
 	for x := 0; x < img.Bounds().Max.X; x++ {
 		for y := 0; y < img.Bounds().Max.Y; y++ {
-			minV = min(minV, img.GrayAt(x, y).Y)
-			maxV = max(maxV, img.GrayAt(x, y).Y)
+			minV = min(minV, uint(img.GrayAt(x, y).Y))
+			maxV = max(maxV, uint(img.GrayAt(x, y).Y))
 		}
 	}
 
 	return
 }
 
-func steps(n uint) *[256]uint8 {
-	result := [256]uint8{}
-
-	// identity transform if n is 0 or 1, since it doesn't really makes sense
-	if n < 2 {
-		for i := range result {
-			result[i] = uint8(i)
-		}
-		return &result
-	}
-
-	// 8 bit gray doesn't allow for more than 256 tones
-	if n > 256 {
-		n = 256
-	}
-
-	// step widths:
-	//  - n=2, stepWidth=127
-	//  - n=3, stepWidth=85.3^
-	//  - n=4, stepWidth=64
-	//  - n=5, stepWidth=51.2
-	stepWidth := 256 / float64(n)
-	stepHeight := 255 / float64(n-1)
-
-	for i := range result {
-		stepIndex := math.Floor(float64(i) / stepWidth) // 0, 1, 2, ..., n-1
-		v := uint8(math.Ceil(stepIndex * stepHeight))
-		result[i] = v
-	}
-
-	return &result
-}
-
-func tones(img *image.Gray, transform *[256]uint8) *image.Gray {
+// tones generates a new grayscale image from img, by limiting the number of grayscale values to n.
+func tones(img *image.Gray, n uint) *image.Gray {
 	bounds := img.Bounds()
 	result := image.NewGray(bounds)
+
+	minValue, maxValue := valueRange(img)
+	transformer, err := staircase.New(minValue, maxValue, n)
+	if err != nil {
+		panic(err)
+	}
 
 	for x := 0; x < bounds.Max.X; x++ {
 		for y := 0; y < bounds.Max.Y; y++ {
 			g := img.GrayAt(x, y)
-			g.Y = transform[g.Y]
+			g.Y = uint8(transformer.Transform(int(g.Y)))
 			result.SetGray(x, y, g)
 		}
 	}
@@ -259,7 +239,7 @@ func tones(img *image.Gray, transform *[256]uint8) *image.Gray {
 }
 
 func outputAppend(output image.Image, gray *image.Gray, n uint) image.Image {
-	grayN := tones(gray, steps(n))
+	grayN := tones(gray, n)
 	bottom := mergeImagesHorizontally([]image.Image{gray, grayN})
 	return mergeImagesVertically([]image.Image{output, bottom})
 }
