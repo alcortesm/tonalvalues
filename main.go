@@ -192,6 +192,9 @@ func mergeImagesVertically(imgs []image.Image) image.Image {
 }
 
 func valueRange(img *image.Gray) (minV, maxV uint8) {
+	minV = 255
+	maxV = 0
+
 	for x := 0; x < img.Bounds().Max.X; x++ {
 		for y := 0; y < img.Bounds().Max.Y; y++ {
 			minV = min(minV, img.GrayAt(x, y).Y)
