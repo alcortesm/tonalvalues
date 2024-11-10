@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/jpeg"
 	"log"
+	"math"
 	"os"
 )
 
@@ -30,10 +31,12 @@ func do(cfg config) error {
 	}
 
 	gray := toGray(original)
-
-	rowColor := mergeImagesHorizontally([]image.Image{original, gray})
-	row2Tones := mergeImagesHorizontally([]image.Image{gray, gray})
-	output := mergeImagesVertically([]image.Image{rowColor, row2Tones})
+	output := mergeImagesHorizontally([]image.Image{original, gray})
+	output = outputAppend(output, gray, 2)
+	output = outputAppend(output, gray, 3)
+	output = outputAppend(output, gray, 4)
+	output = outputAppend(output, gray, 5)
+	output = outputAppend(output, gray, 6)
 
 	if err := saveImage(output); err != nil {
 		return fmt.Errorf("saving output image: %v", err)
@@ -107,16 +110,7 @@ func loadImage(path string) (_ image.Image, err error) {
 	return image, nil
 }
 
-func debugImage(img image.Image) {
-	fmt.Printf("image bounds: %v\n", img.Bounds())
-	for x := 0; x < 2; x++ {
-		for y := 0; y < 2; y++ {
-			fmt.Printf("pixel at %d, %d: %v\n", x, y, img.At(x, y))
-		}
-	}
-}
-
-func toGray(img image.Image) image.Image {
+func toGray(img image.Image) *image.Gray {
 	bounds := img.Bounds()
 	gray := image.NewGray(bounds)
 
@@ -195,4 +189,69 @@ func mergeImagesVertically(imgs []image.Image) image.Image {
 	}
 
 	return result
+}
+
+func valueRange(img *image.Gray) (minV, maxV uint8) {
+	for x := 0; x < img.Bounds().Max.X; x++ {
+		for y := 0; y < img.Bounds().Max.Y; y++ {
+			minV = min(minV, img.GrayAt(x, y).Y)
+			maxV = max(maxV, img.GrayAt(x, y).Y)
+		}
+	}
+
+	return
+}
+
+func steps(n uint) *[256]uint8 {
+	result := [256]uint8{}
+
+	// identity transform if n is 0 or 1, since it doesn't really makes sense
+	if n < 2 {
+		for i := range result {
+			result[i] = uint8(i)
+		}
+		return &result
+	}
+
+	// 8 bit gray doesn't allow for more than 256 tones
+	if n > 256 {
+		n = 256
+	}
+
+	// step widths:
+	//  - n=2, stepWidth=127
+	//  - n=3, stepWidth=85.3^
+	//  - n=4, stepWidth=64
+	//  - n=5, stepWidth=51.2
+	stepWidth := 256 / float64(n)
+	stepHeight := 255 / float64(n-1)
+
+	for i := range result {
+		stepIndex := math.Floor(float64(i) / stepWidth) // 0, 1, 2, ..., n-1
+		v := uint8(math.Ceil(stepIndex * stepHeight))
+		result[i] = v
+	}
+
+	return &result
+}
+
+func tones(img *image.Gray, transform *[256]uint8) *image.Gray {
+	bounds := img.Bounds()
+	result := image.NewGray(bounds)
+
+	for x := 0; x < bounds.Max.X; x++ {
+		for y := 0; y < bounds.Max.Y; y++ {
+			g := img.GrayAt(x, y)
+			g.Y = transform[g.Y]
+			result.SetGray(x, y, g)
+		}
+	}
+
+	return result
+}
+
+func outputAppend(output image.Image, gray *image.Gray, n uint) image.Image {
+	grayN := tones(gray, steps(n))
+	bottom := mergeImagesHorizontally([]image.Image{gray, grayN})
+	return mergeImagesVertically([]image.Image{output, bottom})
 }
