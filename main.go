@@ -9,6 +9,11 @@ import (
 	"os"
 )
 
+// run like this:
+//
+// ./tonalvalues example.jpg
+//
+// then check out the output.jpg file
 func main() {
 	cfg, err := loadConfig()
 	if err != nil {
